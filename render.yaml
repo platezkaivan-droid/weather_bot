@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: weather-bot
+    env: python
+    region: oregon
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python main.py
+    healthCheckPath: /healthz
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: USE_WEBHOOK
+        value: true
+      - key: PORT
+        value: 10000
+    # ВАЖНО: Добавьте эти переменные в Render Dashboard:
+    # BOT_TOKEN - токен вашего бота от @BotFather
+    # WEATHER_API_KEY - ключ API от OpenWeatherMap
+    # WEBHOOK_URL - https://your-app-name.onrender.com (замените на ваш URL)
