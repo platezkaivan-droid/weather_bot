@@ -63,11 +63,14 @@ async def cmd_help(message: types.Message):
     try:
         await message.answer(
             "📋 Доступные команды:\n\n"
-            "🔹 /start - запустить бота\n"
-            "🔹 /weather - погода в вашем городе\n"
-            "🔹 /setcity - установить город по умолчанию\n"
-            "🔹 /stats - статистика бота\n"
-            "� /hкelp - показать эту справку\n\n"
+            "🚀 /start - запустить бота\n"
+            "🌤️ /weather - текущая погода\n"
+            "📅 /forecast - прогноз на 5 дней\n"
+            "🗺️ /map - карта осадков и температуры\n"
+            "🏙️ /setcity - установить город по умолчанию\n"
+            "📊 /stats - статистика бота\n"
+            "ℹ️ /about - информация о боте\n"
+            "❓ /help - показать эту справку\n\n"
             "💡 Также можно просто написать название любого города!"
         )
     except Exception as e:
@@ -111,6 +114,44 @@ async def cmd_about(message: types.Message):
         )
     except Exception as e:
         logger.error(f"Ошибка в команде about: {e}")
+        await safe_send_message(message, "❌ Произошла ошибка. Попробуйте позже.")
+
+@dp.message(Command("forecast"))
+async def cmd_forecast(message: types.Message):
+    """Команда для получения прогноза на неделю"""
+    try:
+        city = db.get_user_city(message.from_user.id)
+        if city:
+            await message.answer("📅 Получаю прогноз на 5 дней...")
+            forecast_info = await get_weather_forecast(city)
+            await message.answer(forecast_info, parse_mode="Markdown")
+        else:
+            await message.answer(
+                "🏙️ У вас не установлен город по умолчанию.\n\n"
+                "Используйте /setcity чтобы установить город, "
+                "или отправьте команду в формате: /forecast Москва"
+            )
+    except Exception as e:
+        logger.error(f"Ошибка в команде forecast: {e}")
+        await safe_send_message(message, "❌ Произошла ошибка. Попробуйте позже.")
+
+@dp.message(Command("map"))
+async def cmd_map(message: types.Message):
+    """Команда для получения карты осадков"""
+    try:
+        city = db.get_user_city(message.from_user.id)
+        if city:
+            await message.answer("🗺️ Получаю карты погоды...")
+            map_info = await get_weather_map(city)
+            await message.answer(map_info, parse_mode="Markdown", disable_web_page_preview=False)
+        else:
+            await message.answer(
+                "🏙️ У вас не установлен город по умолчанию.\n\n"
+                "Используйте /setcity чтобы установить город, "
+                "или отправьте команду в формате: /map Москва"
+            )
+    except Exception as e:
+        logger.error(f"Ошибка в команде map: {e}")
         await safe_send_message(message, "❌ Произошла ошибка. Попробуйте позже.")
 
 @dp.message(Command("setcity"))
@@ -163,8 +204,9 @@ async def city_chosen(message: types.Message, state: FSMContext):
         await safe_send_message(message, "❌ Произошла ошибка. Попробуйте позже.")
         await state.clear()
 
-# получение погоды с обработкой ошибок
+# получение текущей погоды с обработкой ошибок
 async def get_weather(city: str):
+    """Получает текущую погоду для города"""
     try:
         url = f"http://api.openweathermap.org/data/2.5/weather?q={city}&appid={config.WEATHER_API_KEY}&units=metric&lang=ru"
         
@@ -258,6 +300,125 @@ def get_weather_emoji(weather_main: str) -> str:
         'Haze': '🌫️'
     }
     return weather_emojis.get(weather_main, '🌤️')
+
+async def get_weather_forecast(city: str):
+    """Получает прогноз погоды на 5 дней"""
+    try:
+        url = f"http://api.openweathermap.org/data/2.5/forecast?q={city}&appid={config.WEATHER_API_KEY}&units=metric&lang=ru"
+        
+        timeout = aiohttp.ClientTimeout(total=15)
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            async with session.get(url) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    
+                    # Получаем информацию о часовом поясе
+                    timezone_offset = data.get('city', {}).get('timezone', 0)
+                    city_name = data.get('city', {}).get('name', city)
+                    
+                    forecast_text = f"📅 Прогноз погоды на 5 дней для {city_name}:\n\n"
+                    
+                    # Группируем прогнозы по дням
+                    daily_forecasts = {}
+                    
+                    for item in data['list'][:40]:  # Берем первые 40 записей (5 дней по 8 записей)
+                        # Конвертируем время в местное
+                        utc_time = datetime.fromtimestamp(item['dt'], tz=timezone.utc)
+                        local_time = utc_time + timedelta(seconds=timezone_offset)
+                        date_key = local_time.strftime('%Y-%m-%d')
+                        day_name = local_time.strftime('%A')
+                        
+                        # Переводим дни недели на русский
+                        day_names_ru = {
+                            'Monday': 'Понедельник',
+                            'Tuesday': 'Вторник', 
+                            'Wednesday': 'Среда',
+                            'Thursday': 'Четверг',
+                            'Friday': 'Пятница',
+                            'Saturday': 'Суббота',
+                            'Sunday': 'Воскресенье'
+                        }
+                        day_name_ru = day_names_ru.get(day_name, day_name)
+                        
+                        if date_key not in daily_forecasts:
+                            daily_forecasts[date_key] = {
+                                'day_name': day_name_ru,
+                                'date': local_time.strftime('%d.%m'),
+                                'temps': [],
+                                'descriptions': [],
+                                'weather_main': []
+                            }
+                        
+                        daily_forecasts[date_key]['temps'].append(item['main']['temp'])
+                        daily_forecasts[date_key]['descriptions'].append(item['weather'][0]['description'])
+                        daily_forecasts[date_key]['weather_main'].append(item['weather'][0]['main'])
+                    
+                    # Формируем прогноз по дням
+                    for date_key in sorted(daily_forecasts.keys())[:5]:  # Только 5 дней
+                        day_data = daily_forecasts[date_key]
+                        
+                        min_temp = min(day_data['temps'])
+                        max_temp = max(day_data['temps'])
+                        
+                        # Выбираем наиболее частое описание погоды
+                        most_common_weather = max(set(day_data['weather_main']), key=day_data['weather_main'].count)
+                        weather_emoji = get_weather_emoji(most_common_weather)
+                        
+                        # Берем первое описание (обычно самое точное)
+                        description = day_data['descriptions'][0].capitalize()
+                        
+                        forecast_text += f"{weather_emoji} **{day_data['day_name']} ({day_data['date']})**\n"
+                        forecast_text += f"   🌡️ {min_temp:.0f}°...{max_temp:.0f}°C\n"
+                        forecast_text += f"   📝 {description}\n\n"
+                    
+                    return forecast_text
+                    
+                elif response.status == 404:
+                    return "❌ Город не найден для прогноза погоды."
+                else:
+                    logger.error(f"Forecast API вернул статус {response.status}")
+                    return "⚠️ Сервис прогноза временно недоступен."
+                    
+    except asyncio.TimeoutError:
+        logger.error(f"Таймаут при запросе прогноза для города {city}")
+        return "⏰ Превышено время ожидания прогноза."
+    except Exception as e:
+        logger.error(f"Ошибка при получении прогноза: {e}")
+        return "❌ Произошла ошибка при получении прогноза."
+
+async def get_weather_map(city: str):
+    """Получает ссылку на карту осадков для города"""
+    try:
+        # Сначала получаем координаты города
+        url = f"http://api.openweathermap.org/data/2.5/weather?q={city}&appid={config.WEATHER_API_KEY}"
+        
+        timeout = aiohttp.ClientTimeout(total=10)
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            async with session.get(url) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    lat = data['coord']['lat']
+                    lon = data['coord']['lon']
+                    city_name = data['name']
+                    
+                    # Создаем ссылки на карты
+                    precipitation_map = f"https://openweathermap.org/weathermap?basemap=map&cities=true&layer=precipitation&lat={lat}&lon={lon}&zoom=10"
+                    clouds_map = f"https://openweathermap.org/weathermap?basemap=map&cities=true&layer=clouds&lat={lat}&lon={lon}&zoom=10"
+                    temp_map = f"https://openweathermap.org/weathermap?basemap=map&cities=true&layer=temp&lat={lat}&lon={lon}&zoom=10"
+                    
+                    return (
+                        f"🗺️ Карты погоды для {city_name}:\n\n"
+                        f"🌧️ [Карта осадков]({precipitation_map})\n"
+                        f"☁️ [Карта облачности]({clouds_map})\n"
+                        f"🌡️ [Карта температуры]({temp_map})\n\n"
+                        f"📍 Координаты: {lat:.2f}, {lon:.2f}"
+                    )
+                else:
+                    return "❌ Не удалось получить координаты города для карты."
+                    
+    except Exception as e:
+        logger.error(f"Ошибка при получении карты: {e}")
+        return "❌ Произошла ошибка при получении карты погоды."
 
 # Настройка команд бота
 async def set_bot_commands():
@@ -458,6 +619,42 @@ async def callback_city_weather(callback: CallbackQuery):
         
     except Exception as e:
         logger.error(f"Ошибка в callback city weather: {e}")
+
+@dp.callback_query(F.data == "forecast")
+async def callback_forecast(callback: CallbackQuery):
+    try:
+        await callback.answer()
+        city = db.get_user_city(callback.from_user.id)
+        if city:
+            await callback.message.answer("📅 Получаю прогноз на 5 дней...")
+            forecast_info = await get_weather_forecast(city)
+            await callback.message.answer(forecast_info, parse_mode="Markdown")
+        else:
+            await callback.message.answer(
+                "🏙️ У вас не установлен город по умолчанию.\n\n"
+                "Используйте кнопку ниже чтобы установить город:",
+                reply_markup=kb.get_inline_menu_keyboard()
+            )
+    except Exception as e:
+        logger.error(f"Ошибка в callback forecast: {e}")
+
+@dp.callback_query(F.data == "map")
+async def callback_map(callback: CallbackQuery):
+    try:
+        await callback.answer()
+        city = db.get_user_city(callback.from_user.id)
+        if city:
+            await callback.message.answer("🗺️ Получаю карты погоды...")
+            map_info = await get_weather_map(city)
+            await callback.message.answer(map_info, parse_mode="Markdown", disable_web_page_preview=False)
+        else:
+            await callback.message.answer(
+                "🏙️ У вас не установлен город по умолчанию.\n\n"
+                "Используйте кнопку ниже чтобы установить город:",
+                reply_markup=kb.get_inline_menu_keyboard()
+            )
+    except Exception as e:
+        logger.error(f"Ошибка в callback map: {e}")
 
 # Команда для обновления меню (только для разработчика)
 @dp.message(Command("updatemenu"))

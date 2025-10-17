@@ -19,11 +19,13 @@ async def setup_bot_commands():
     
     commands = [
         BotCommand(command="start", description="🚀 Запустить бота"),
-        BotCommand(command="weather", description="🌤️ Погода в моем городе"),
-        BotCommand(command="setcity", description="🏙️ Установить город по умолчанию"),
-        BotCommand(command="stats", description="📊 Статистика бота"),
+        BotCommand(command="weather", description="🌤️ Текущая погода"),
+        BotCommand(command="forecast", description="📅 Прогноз на 5 дней"),
+        BotCommand(command="map", description="🗺️ Карта осадков"),
+        BotCommand(command="setcity", description="🏙️ Установить город"),
+        BotCommand(command="stats", description="📊 Статистика"),
         BotCommand(command="about", description="ℹ️ О боте"),
-        BotCommand(command="help", description="❓ Помощь и список команд"),
+        BotCommand(command="help", description="❓ Помощь"),
     ]
     
     try:

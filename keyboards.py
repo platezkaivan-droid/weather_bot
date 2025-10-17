@@ -27,7 +27,11 @@ def get_inline_menu_keyboard():
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
             [
-                InlineKeyboardButton(text="🌤️ Моя погода", callback_data="weather"),
+                InlineKeyboardButton(text="🌤️ Текущая погода", callback_data="weather"),
+                InlineKeyboardButton(text="📅 Прогноз на 5 дней", callback_data="forecast")
+            ],
+            [
+                InlineKeyboardButton(text="🗺️ Карта осадков", callback_data="map"),
                 InlineKeyboardButton(text="🏙️ Установить город", callback_data="setcity")
             ],
             [
