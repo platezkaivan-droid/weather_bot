@@ -21,7 +21,7 @@ async def setup_bot_commands():
         BotCommand(command="start", description="🚀 Запустить бота"),
         BotCommand(command="weather", description="🌤️ Текущая погода"),
         BotCommand(command="forecast", description="📅 Прогноз на 5 дней"),
-        BotCommand(command="map", description="🗺️ Карта осадков"),
+        BotCommand(command="map", description="🗺️ Карта погоды"),
         BotCommand(command="setcity", description="🏙️ Установить город"),
         BotCommand(command="stats", description="📊 Статистика"),
         BotCommand(command="about", description="ℹ️ О боте"),

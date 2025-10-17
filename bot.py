@@ -9,7 +9,7 @@ from aiogram.filters.command import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.exceptions import TelegramNetworkError, TelegramRetryAfter, TelegramBadRequest
-from aiogram.types import BotCommand, BotCommandScopeDefault, MenuButtonCommands, CallbackQuery
+from aiogram.types import BotCommand, BotCommandScopeDefault, MenuButtonCommands, CallbackQuery, WebAppData
 
 # Импортируем модули
 import config
@@ -137,18 +137,26 @@ async def cmd_forecast(message: types.Message):
 
 @dp.message(Command("map"))
 async def cmd_map(message: types.Message):
-    """Команда для получения карты осадков"""
+    """Команда для получения карты погоды"""
     try:
         city = db.get_user_city(message.from_user.id)
         if city:
             await message.answer("🗺️ Получаю карты погоды...")
             map_info = await get_weather_map(city)
-            await message.answer(map_info, parse_mode="Markdown", disable_web_page_preview=False)
+            await message.answer(
+                map_info, 
+                parse_mode="Markdown", 
+                disable_web_page_preview=False,
+                reply_markup=kb.get_weather_map_keyboard()
+            )
         else:
             await message.answer(
                 "🏙️ У вас не установлен город по умолчанию.\n\n"
-                "Используйте /setcity чтобы установить город, "
-                "или отправьте команду в формате: /map Москва"
+                "Вы можете:\n"
+                "• Использовать /setcity чтобы установить город\n"
+                "• Отправить команду в формате: /map Москва\n"
+                "• Использовать интерактивную карту с вашим местоположением",
+                reply_markup=kb.get_weather_map_keyboard()
             )
     except Exception as e:
         logger.error(f"Ошибка в команде map: {e}")
@@ -425,11 +433,13 @@ async def set_bot_commands():
     """Устанавливает список команд для меню бота"""
     commands = [
         BotCommand(command="start", description="🚀 Запустить бота"),
-        BotCommand(command="weather", description="🌤️ Погода в моем городе"),
-        BotCommand(command="setcity", description="🏙️ Установить город по умолчанию"),
-        BotCommand(command="stats", description="📊 Статистика бота"),
+        BotCommand(command="weather", description="🌤️ Текущая погода"),
+        BotCommand(command="forecast", description="📅 Прогноз на 5 дней"),
+        BotCommand(command="map", description="🗺️ Карта погоды"),
+        BotCommand(command="setcity", description="🏙️ Установить город"),
+        BotCommand(command="stats", description="📊 Статистика"),
         BotCommand(command="about", description="ℹ️ О боте"),
-        BotCommand(command="help", description="❓ Помощь и список команд"),
+        BotCommand(command="help", description="❓ Помощь"),
     ]
     
     try:
@@ -646,15 +656,43 @@ async def callback_map(callback: CallbackQuery):
         if city:
             await callback.message.answer("🗺️ Получаю карты погоды...")
             map_info = await get_weather_map(city)
-            await callback.message.answer(map_info, parse_mode="Markdown", disable_web_page_preview=False)
+            await callback.message.answer(
+                map_info, 
+                parse_mode="Markdown", 
+                disable_web_page_preview=False,
+                reply_markup=kb.get_weather_map_keyboard()
+            )
         else:
             await callback.message.answer(
                 "🏙️ У вас не установлен город по умолчанию.\n\n"
-                "Используйте кнопку ниже чтобы установить город:",
-                reply_markup=kb.get_inline_menu_keyboard()
+                "Вы можете:\n"
+                "• Использовать кнопку ниже чтобы установить город\n"
+                "• Использовать интерактивную карту с вашим местоположением",
+                reply_markup=kb.get_weather_map_keyboard()
             )
     except Exception as e:
         logger.error(f"Ошибка в callback map: {e}")
+
+@dp.callback_query(F.data == "back_to_menu")
+async def callback_back_to_menu(callback: CallbackQuery):
+    try:
+        await callback.answer()
+        await callback.message.edit_text(
+            "🌤️ Главное меню Weather Bot\n\n"
+            "Выберите нужную функцию:",
+            reply_markup=kb.get_inline_menu_keyboard()
+        )
+    except Exception as e:
+        logger.error(f"Ошибка в callback back_to_menu: {e}")
+        # Если не удалось отредактировать, отправим новое сообщение
+        try:
+            await callback.message.answer(
+                "🌤️ Главное меню Weather Bot\n\n"
+                "Выберите нужную функцию:",
+                reply_markup=kb.get_inline_menu_keyboard()
+            )
+        except Exception as e2:
+            logger.error(f"Ошибка при отправке нового сообщения: {e2}")
 
 # Команда для обновления меню (только для разработчика)
 @dp.message(Command("updatemenu"))
@@ -676,6 +714,34 @@ async def cmd_update_menu(message: types.Message):
     except Exception as e:
         logger.error(f"Ошибка в команде updatemenu: {e}")
         await safe_send_message(message, "❌ Произошла ошибка. Попробуйте позже.")
+
+# Обработчик Web App данных
+@dp.message(F.web_app_data)
+async def web_app_data_handler(message: types.Message):
+    try:
+        import json
+        data = json.loads(message.web_app_data.data)
+        
+        if data.get('action') == 'location_received':
+            lat = data.get('latitude')
+            lon = data.get('longitude')
+            
+            if lat and lon:
+                await message.answer(
+                    f"📍 Получены координаты: {lat:.4f}, {lon:.4f}\n\n"
+                    f"🗺️ Карты погоды для вашего местоположения:",
+                    reply_markup=kb.get_weather_map_links_keyboard(lat, lon)
+                )
+                
+                logger.info(f"Пользователь {message.from_user.id} отправил координаты через Web App: {lat}, {lon}")
+            else:
+                await message.answer("❌ Не удалось получить координаты из Web App")
+        else:
+            await message.answer("✅ Данные получены из Web App")
+            
+    except Exception as e:
+        logger.error(f"Ошибка при обработке Web App данных: {e}")
+        await message.answer("❌ Ошибка при обработке данных из Web App")
 
 # Обработчик ошибок
 @dp.error()
