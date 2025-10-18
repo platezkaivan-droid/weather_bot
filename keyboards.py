@@ -40,6 +40,9 @@ def get_inline_menu_keyboard():
             ],
             [
                 InlineKeyboardButton(text="ℹ️ О боте", callback_data="about"),
+                InlineKeyboardButton(text="🔄 Статус", callback_data="status")
+            ],
+            [
                 InlineKeyboardButton(text="❓ Помощь", callback_data="help")
             ]
         ]

@@ -3,13 +3,17 @@ import logging
 import aiohttp
 import sys
 import traceback
+import json
 from datetime import datetime, timezone, timedelta
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters.command import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.exceptions import TelegramNetworkError, TelegramRetryAfter, TelegramBadRequest
-from aiogram.types import BotCommand, BotCommandScopeDefault, MenuButtonCommands, CallbackQuery, WebAppData
+from aiogram.types import (
+    BotCommand, BotCommandScopeDefault, MenuButtonCommands, 
+    CallbackQuery, WebAppData, Location
+)
 
 # Импортируем модули
 import config
@@ -46,17 +50,63 @@ async def cmd_start(message: types.Message):
         username = message.from_user.username or "Пользователь"
         logger.info(f"Пользователь {username} (ID: {user_id}) запустил бота")
         
-        await message.answer(
-            "🌤️ Привет! Я бот для прогноза погоды.\n\n"
-            "🔹 Просто отправь мне название города, и я пришлю актуальную погоду\n"
-            "🔹 Используй кнопки ниже для быстрого доступа к функциям\n"
-            "🔹 Или воспользуйся командами из меню\n\n"
-            "� Прeимер: отправь \"Москва\" или \"Moscow\"",
+        # Проверяем, есть ли у пользователя сохраненный город
+        user_city = db.get_user_city(user_id)
+        first_name = message.from_user.first_name or "Друг"
+        city_info = f"\n🏙️ Ваш город: {user_city}" if user_city else "\n💡 Установите город по умолчанию командой /setcity"
+        
+        # Отправляем сообщение о запуске
+        startup_msg = await message.answer(
+            "⏳ Запускаю Weather Bot...\n"
+            "Это займет примерно 20-30 секунд"
+        )
+        
+        # Небольшая задержка для имитации запуска
+        await asyncio.sleep(2)
+        
+        # Обновляем сообщение с полной информацией
+        await startup_msg.edit_text(
+            f"🌤️ Привет, {first_name}! Я Weather Bot v2.1\n\n"
+            "✨ Мои возможности:\n"
+            "🔹 Текущая погода для любого города\n"
+            "🔹 Прогноз на 5 дней\n"
+            "🔹 Интерактивные карты погоды\n"
+            "🔹 Сохранение города по умолчанию\n"
+            "🔹 Все команды в меню Telegram\n\n"
+            f"{city_info}\n\n"
+            "⚡ Бот готов к работе!\n"
+            "🚀 Начните с кнопок ниже или просто отправьте название города!",
             reply_markup=kb.get_inline_menu_keyboard()
         )
     except Exception as e:
         logger.error(f"Ошибка в команде start: {e}")
         await safe_send_message(message, "❌ Произошла ошибка. Попробуйте позже.")
+
+# Обработчик местоположения
+@dp.message(F.location)
+async def handle_location(message: types.Message):
+    try:
+        location = message.location
+        lat = location.latitude
+        lon = location.longitude
+        
+        await message.answer(
+            f"📍 Получено местоположение!\n"
+            f"Координаты: {lat:.4f}, {lon:.4f}\n\n"
+            f"🗺️ Карты погоды для вашего местоположения:",
+            reply_markup=kb.get_weather_map_links_keyboard(lat, lon)
+        )
+        
+        # Также получаем погоду по координатам
+        weather_info = await get_weather_by_coordinates(lat, lon)
+        if weather_info:
+            await message.answer(weather_info)
+        
+        logger.info(f"Пользователь {message.from_user.id} отправил местоположение: {lat}, {lon}")
+        
+    except Exception as e:
+        logger.error(f"Ошибка при обработке местоположения: {e}")
+        await safe_send_message(message, "❌ Ошибка при обработке местоположения.")
 
 @dp.message(Command("help"))
 async def cmd_help(message: types.Message):
@@ -66,12 +116,19 @@ async def cmd_help(message: types.Message):
             "🚀 /start - запустить бота\n"
             "🌤️ /weather - текущая погода\n"
             "📅 /forecast - прогноз на 5 дней\n"
-            "🗺️ /map - карта осадков и температуры\n"
+            "🗺️ /map - карты погоды\n"
+            "📍 /location - запросить местоположение\n"
             "🏙️ /setcity - установить город по умолчанию\n"
             "📊 /stats - статистика бота\n"
             "ℹ️ /about - информация о боте\n"
             "❓ /help - показать эту справку\n\n"
-            "💡 Также можно просто написать название любого города!"
+            "💡 Способы получения погоды:\n"
+            "• Отправьте название города\n"
+            "• Отправьте местоположение\n"
+            "• Используйте интерактивную карту\n"
+            "• Установите город по умолчанию\n\n"
+            "⏳ Время запуска бота: 20-30 секунд\n"
+            "💡 При первом использовании подождите немного"
         )
     except Exception as e:
         logger.error(f"Ошибка в команде help: {e}")
@@ -88,8 +145,12 @@ async def cmd_stats(message: types.Message):
             f"👥 Всего пользователей: {stats['total_users']}\n"
             f"🏙️ Уникальных городов: {stats['unique_cities']}\n"
             f"🌍 Ваш город: {user_city or 'Не установлен'}\n"
-            f"🤖 Версия: 2.0\n"
+            f"🤖 Версия: 2.1\n"
             f"⚡ Статус: Активен\n\n"
+            f"🆕 Новые возможности:\n"
+            f"• Интерактивные карты погоды\n"
+            f"• Поддержка геолокации\n"
+            f"• Команды в меню Telegram\n\n"
             f"💡 Используйте /setcity для установки города по умолчанию"
         )
     except Exception as e:
@@ -101,19 +162,80 @@ async def cmd_about(message: types.Message):
     try:
         await message.answer(
             "🤖 О боте:\n\n"
-            "🌤️ Weather Bot v2.0\n"
+            "🌤️ Weather Bot v2.1\n"
             "Надежный бот для получения прогноза погоды\n\n"
-            "✨ Возможности:\n"
+            "✨ Новые возможности:\n"
             "• Актуальная погода для любого города\n"
+            "• Прогноз на 5 дней\n"
+            "• Интерактивные карты погоды\n"
+            "• Поддержка геолокации\n"
+            "• Команды в меню Telegram\n"
             "• Сохранение города по умолчанию\n"
-            "• Подробная информация о погоде\n"
-            "• Статистика использования\n\n"
+            "• Web App для карт погоды\n\n"
+            "⚡ Особенности работы:\n"
+            "• Первый запуск: 20-30 секунд\n"
+            "• Размещен на облачном сервере\n"
+            "• Автоматические обновления\n\n"
             "👨‍💻 Разработчик: @Skrizzzy4\n"
-            "🔗 GitHub: github.com/platezkaivan-droid\n\n"
-            "💡 Просто отправьте название города!"
+            "🔗 GitHub: github.com/platezkaivan-droid\n"
+            "🌍 Web App: platezkaivan-droid.github.io/weather-bot-webapp\n\n"
+            "💡 Просто отправьте название города или местоположение!"
         )
     except Exception as e:
         logger.error(f"Ошибка в команде about: {e}")
+        await safe_send_message(message, "❌ Произошла ошибка. Попробуйте позже.")
+
+@dp.message(Command("status"))
+async def cmd_status(message: types.Message):
+    """Команда для проверки статуса бота"""
+    try:
+        import time
+        start_time = time.time()
+        
+        status_msg = await message.answer("🔄 Проверяю статус бота...")
+        
+        # Проверяем базу данных
+        try:
+            stats = db.get_user_stats()
+            db_status = "✅ Работает"
+        except:
+            db_status = "❌ Ошибка"
+        
+        # Проверяем API погоды
+        try:
+            weather_info = await get_weather("Moscow")
+            api_status = "✅ Работает" if "Москва" in weather_info or "Moscow" in weather_info else "⚠️ Частично"
+        except:
+            api_status = "❌ Ошибка"
+        
+        response_time = round((time.time() - start_time) * 1000)
+        
+        await status_msg.edit_text(
+            f"📊 Статус Weather Bot v2.1:\n\n"
+            f"🤖 Бот: ✅ Активен\n"
+            f"🗄️ База данных: {db_status}\n"
+            f"🌤️ API погоды: {api_status}\n"
+            f"🌍 Web App: ✅ Работает\n"
+            f"⚡ Время ответа: {response_time}мс\n\n"
+            f"💡 Первый запуск может занять 20-30 секунд\n"
+            f"⏰ Бот размещен на облачном сервере"
+        )
+        
+    except Exception as e:
+        logger.error(f"Ошибка в команде status: {e}")
+        await safe_send_message(message, "❌ Произошла ошибка при проверке статуса.")
+
+@dp.message(Command("location"))
+async def cmd_location(message: types.Message):
+    """Команда для запроса местоположения"""
+    try:
+        await message.answer(
+            "📍 Отправьте ваше местоположение для получения погоды\n\n"
+            "Нажмите кнопку ниже или используйте скрепку → Местоположение в Telegram",
+            reply_markup=kb.get_location_request_keyboard()
+        )
+    except Exception as e:
+        logger.error(f"Ошибка в команде location: {e}")
         await safe_send_message(message, "❌ Произошла ошибка. Попробуйте позже.")
 
 @dp.message(Command("forecast"))
@@ -309,6 +431,57 @@ def get_weather_emoji(weather_main: str) -> str:
     }
     return weather_emojis.get(weather_main, '🌤️')
 
+async def get_weather_by_coordinates(lat: float, lon: float):
+    """Получает текущую погоду по координатам"""
+    try:
+        url = f"http://api.openweathermap.org/data/2.5/weather?lat={lat}&lon={lon}&appid={config.WEATHER_API_KEY}&units=metric&lang=ru"
+        
+        timeout = aiohttp.ClientTimeout(total=10)
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            async with session.get(url) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    city_name = data.get('name', 'Неизвестное место')
+                    country = data.get('sys', {}).get('country', '')
+                    location_name = f"{city_name}, {country}" if country else city_name
+                    
+                    description = data['weather'][0]['description']
+                    temp = data['main']['temp']
+                    feels_like = data['main']['feels_like']
+                    wind_speed = data['wind']['speed']
+                    humidity = data['main']['humidity']
+                    pressure = data['main']['pressure']
+                    
+                    # Получаем информацию о часовом поясе
+                    timezone_offset = data.get('timezone', 0)
+                    utc_now = datetime.now(timezone.utc)
+                    local_time = utc_now + timedelta(seconds=timezone_offset)
+                    local_time_str = local_time.strftime('%H:%M:%S')
+                    local_date_str = local_time.strftime('%d.%m.%Y')
+                    
+                    # Определяем эмодзи для погоды
+                    weather_emoji = get_weather_emoji(data['weather'][0]['main'])
+                    
+                    return (
+                        f"{weather_emoji} Погода в {location_name}:\n\n"
+                        f"🌡️ Температура: {temp}°C\n"
+                        f"🤔 Ощущается как: {feels_like}°C\n"
+                        f"🌬️ Скорость ветра: {wind_speed} м/с\n"
+                        f"💧 Влажность: {humidity}%\n"
+                        f"📊 Давление: {pressure} гПа\n"
+                        f"📝 Описание: {description.capitalize()}\n\n"
+                        f"📅 Дата: {local_date_str}\n"
+                        f"🕐 Местное время: {local_time_str}\n"
+                        f"📍 Координаты: {lat:.4f}, {lon:.4f}"
+                    )
+                else:
+                    logger.error(f"Weather API вернул статус {response.status} для координат {lat}, {lon}")
+                    return None
+                    
+    except Exception as e:
+        logger.error(f"Ошибка при получении погоды по координатам: {e}")
+        return None
+
 async def get_weather_forecast(city: str):
     """Получает прогноз погоды на 5 дней"""
     try:
@@ -436,8 +609,10 @@ async def set_bot_commands():
         BotCommand(command="weather", description="🌤️ Текущая погода"),
         BotCommand(command="forecast", description="📅 Прогноз на 5 дней"),
         BotCommand(command="map", description="🗺️ Карта погоды"),
+        BotCommand(command="location", description="📍 Отправить местоположение"),
         BotCommand(command="setcity", description="🏙️ Установить город"),
         BotCommand(command="stats", description="📊 Статистика"),
+        BotCommand(command="status", description="🔄 Статус бота"),
         BotCommand(command="about", description="ℹ️ О боте"),
         BotCommand(command="help", description="❓ Помощь"),
     ]
@@ -488,6 +663,18 @@ async def cmd_weather(message: types.Message):
     except Exception as e:
         logger.error(f"Ошибка в команде weather: {e}")
         await safe_send_message(message, "❌ Произошла ошибка. Попробуйте позже.")
+
+# Обработчик кнопки "Отмена"
+@dp.message(F.text == "❌ Отмена")
+async def handle_cancel(message: types.Message):
+    try:
+        await message.answer(
+            "✅ Отменено\n\n"
+            "Выберите другую функцию:",
+            reply_markup=kb.get_inline_menu_keyboard()
+        )
+    except Exception as e:
+        logger.error(f"Ошибка при обработке отмены: {e}")
 
 @dp.message(F.text)
 async def text_weather_handler(message: types.Message):
@@ -593,6 +780,46 @@ async def callback_about(callback: CallbackQuery):
         )
     except Exception as e:
         logger.error(f"Ошибка в callback about: {e}")
+
+@dp.callback_query(F.data == "status")
+async def callback_status(callback: CallbackQuery):
+    try:
+        await callback.answer()
+        import time
+        start_time = time.time()
+        
+        status_msg = await callback.message.answer("🔄 Проверяю статус бота...")
+        
+        # Проверяем базу данных
+        try:
+            stats = db.get_user_stats()
+            db_status = "✅ Работает"
+        except:
+            db_status = "❌ Ошибка"
+        
+        # Проверяем API погоды
+        try:
+            weather_info = await get_weather("Moscow")
+            api_status = "✅ Работает" if "Москва" in weather_info or "Moscow" in weather_info else "⚠️ Частично"
+        except:
+            api_status = "❌ Ошибка"
+        
+        response_time = round((time.time() - start_time) * 1000)
+        
+        await status_msg.edit_text(
+            f"📊 Статус Weather Bot v2.1:\n\n"
+            f"🤖 Бот: ✅ Активен\n"
+            f"🗄️ База данных: {db_status}\n"
+            f"🌤️ API погоды: {api_status}\n"
+            f"🌍 Web App: ✅ Работает\n"
+            f"⚡ Время ответа: {response_time}мс\n\n"
+            f"💡 Первый запуск может занять 20-30 секунд\n"
+            f"⏰ Бот размещен на облачном сервере",
+            reply_markup=kb.get_inline_menu_keyboard()
+        )
+        
+    except Exception as e:
+        logger.error(f"Ошибка в callback status: {e}")
 
 @dp.callback_query(F.data == "help")
 async def callback_help(callback: CallbackQuery):
@@ -727,11 +954,19 @@ async def web_app_data_handler(message: types.Message):
             lon = data.get('longitude')
             
             if lat and lon:
+                # Отправляем карты погоды
                 await message.answer(
-                    f"📍 Получены координаты: {lat:.4f}, {lon:.4f}\n\n"
+                    f"� ПКолучены координаты: {lat:.4f}, {lon:.4f}\n\n"
                     f"🗺️ Карты погоды для вашего местоположения:",
                     reply_markup=kb.get_weather_map_links_keyboard(lat, lon)
                 )
+                
+                # Получаем и отправляем текущую погоду
+                weather_info = await get_weather_by_coordinates(lat, lon)
+                if weather_info:
+                    await message.answer(weather_info)
+                else:
+                    await message.answer("⚠️ Не удалось получить данные о погоде для этого местоположения")
                 
                 logger.info(f"Пользователь {message.from_user.id} отправил координаты через Web App: {lat}, {lon}")
             else:
