@@ -1,266 +1,109 @@
-# 🌤️ Weather Bot
+# 🌤️ Weather Telegram Bot
 
-Надежный телеграм-бот для получения прогноза погоды с автоперезапуском и мониторингом.
+A reliable Telegram weather bot with auto-restart watchdog, SQLite database, and an interactive weather map Web App.
 
-## ✨ Возможности
+## Features
 
-- 🌡️ Актуальная погода для любого города
-- 🏙️ Сохранение города по умолчанию
-- 🔄 Автоматический перезапуск при сбоях
-- 📊 Статистика использования
-- 💾 Автоматическое резервное копирование БД
-- 📝 Подробное логирование
-- 🛡️ Обработка всех типов ошибок
-- ⌨️ Панель команд в Telegram
-- 🎯 Инлайн клавиатуры для удобства
-- 🌍 Примеры популярных городов
-- 🕐 Точное местное время города
-- 🌅 Время восхода и заката солнца
+- 🌡️ Current weather for any city worldwide
+- 🏙️ Save a default city per user
+- 🔄 Auto-restart on crash (watchdog process)
+- 📊 Usage statistics
+- 💾 Automatic database backup
+- 🛡️ Full error handling + rate-limit protection
+- ⌨️ Telegram command menu with inline keyboards
+- 🕐 Accurate local time + sunrise/sunset times
+- 🗺️ Interactive weather map (Telegram Web App)
 
-## 🚀 Быстрый запуск
+## Stack
 
-### 🌐 Деплой на Render (рекомендуется)
+| | |
+|---|---|
+| Language | Python 3 |
+| Bot framework | python-telegram-bot |
+| Weather API | [OpenWeatherMap](https://openweathermap.org/api) |
+| Database | SQLite |
+| Deploy | [Render](https://render.com) (webhook mode) |
+| Container | Docker |
 
-1. **Форкните репозиторий** на GitHub
-2. **Создайте Web Service** на [render.com](https://render.com)
-3. **Подключите GitHub репозиторий**
-4. **Установите переменные окружения**:
-   - `BOT_TOKEN` - токен вашего бота
-   - `WEATHER_API_KEY` - ключ OpenWeatherMap
-   - `USE_WEBHOOK` - `true`
-   - `WEBHOOK_URL` - URL вашего приложения на Render
-5. **Деплой** произойдет автоматически
+## Quick Start
 
-### 💻 Локальная разработка
-
-#### Windows
 ```bash
-# Установите панель команд (один раз)
-install_menu.bat
-
-# Запустите бота
-start_bot.bat
-```
-
-#### Linux/Mac
-```bash
-# Сделайте файлы исполняемыми
-chmod +x *.sh
-
-# Установите панель команд (один раз)
-./install_menu.sh
-
-# Запустите бота
-./start_bot.sh
-```
-
-#### Ручной запуск
-```bash
-# Установите зависимости
+git clone https://github.com/platezkaivan-droid/weather_bot.git
+cd weather_bot
+cp .env.example .env        # fill in BOT_TOKEN and WEATHER_API_KEY
 pip install -r requirements.txt
-
-# Скопируйте конфигурацию
-cp .env.example .env
-# Отредактируйте .env файл
-
-# Установите команды бота (один раз)
-python setup_commands.py
-
-# Запустите бота
 python main.py
 ```
 
-## ⚙️ Настройка
+### Windows
 
-### 🔑 Получение токенов
-
-1. **Токен бота**: Напишите [@BotFather](https://t.me/BotFather) в Telegram
-2. **API ключ погоды**: Зарегистрируйтесь на [OpenWeatherMap](https://openweathermap.org/api)
-
-### 🌐 Для деплоя на Render
-
-Установите переменные окружения в Render Dashboard:
-- `BOT_TOKEN` - токен вашего бота
-- `WEATHER_API_KEY` - ключ OpenWeatherMap API
-- `USE_WEBHOOK` - `true`
-- `WEBHOOK_URL` - `https://your-app-name.onrender.com`
-
-### 💻 Для локальной разработки
-
-1. Скопируйте `.env.example` в `.env`
-2. Заполните ваши токены в `.env` файле
-3. Бот автоматически создаст базу данных при первом запуске
-
-## 📋 Команды бота
-
-- `/start` - запустить бота с меню
-- `/weather` - погода в вашем городе
-- `/setcity` - установить город по умолчанию
-- `/stats` - статистика бота
-- `/about` - информация о боте
-- `/help` - справка с примерами
-
-## 🎯 Интерфейс
-
-- **Панель команд** - все команды доступны через меню Telegram
-- **Инлайн кнопки** - быстрый доступ к функциям
-- **Примеры городов** - популярные города одним нажатием
-- **Интуитивная навигация** - простое управление
-
-## 🔧 Файлы проекта
-
-- `bot.py` - основной код бота
-- `run_bot.py` - система автоперезапуска
-- `database.py` - работа с базой данных
-- `config.py` - настройки
-- `keyboards.py` - клавиатуры и кнопки
-- `setup_commands.py` - установка панели команд
-- `start_bot.bat/sh` - скрипты запуска
-- `install_menu.bat/sh` - установка панели команд
-
-## 📊 Логирование
-
-Логи сохраняются в файлы:
-- `bot.log` - логи основного бота
-- `bot_runner.log` - логи системы мониторинга
-
-## 🛡️ Надежность
-
-- ✅ Автоперезапуск при сбоях
-- ✅ Обработка сетевых ошибок
-- ✅ Graceful shutdown
-- ✅ Резервное копирование БД
-- ✅ Rate limiting защита
-- ✅ Валидация входных данных
-
-## 🌐 Деплой на Render
-
-### Пошаговая инструкция:
-
-1. **Форк репозитория**:
-   - Нажмите "Fork" на GitHub
-   - Клонируйте свой форк
-
-2. **Создание сервиса на Render**:
-   - Зайдите на [render.com](https://render.com)
-   - Нажмите "New" → "Web Service"
-   - Подключите ваш GitHub репозиторий
-   - Выберите папку `weatherbot`
-
-3. **Настройка сервиса**:
-   - **Name**: `weather-bot` (или любое другое)
-   - **Environment**: `Python 3`
-   - **Build Command**: `pip install -r requirements.txt`
-   - **Start Command**: `python main.py`
-
-4. **Переменные окружения**:
-   ```
-   BOT_TOKEN=your_bot_token_here
-   WEATHER_API_KEY=your_weather_api_key_here
-   USE_WEBHOOK=true
-   WEBHOOK_URL=https://your-app-name.onrender.com
-   ```
-
-5. **Деплой**: Нажмите "Create Web Service"
-
-6. **Тестирование**: После деплоя проверьте endpoints:
-   ```bash
-   # Тестирование health endpoints
-   python test_health.py https://your-app-name.onrender.com
-   ```
-
-### 🔄 Автоматические обновления
-
-После настройки каждый push в GitHub автоматически обновит бота на Render.
-
-## 📈 Мониторинг
-
-Бот автоматически:
-- Работает 24/7 на Render
-- Использует webhook для мгновенных ответов
-- Логирует все события
-- Показывает статистику использования
-- Health check endpoints: `/health`, `/healthz`, `/ready`, `/alive`
-
-## 🆘 Устранение неполадок
-
-1. **Бот не запускается**: Проверьте токен в `config.py`
-2. **Нет панели команд**: Запустите `install_menu.bat/sh` или `python setup_commands.py`
-3. **Нет погоды**: Проверьте API ключ OpenWeatherMap
-4. **Ошибки БД при установке города**: Запустите `fix_db.bat/sh` или `python fix_database.py`
-5. **Старая структура БД**: Скрипты запуска автоматически исправят базу
-6. **Сетевые ошибки**: Бот автоматически переподключится
-7. **Команды не обновляются**: Используйте `/updatemenu` (только для разработчика)
-
-### 🔧 Быстрое исправление БД
-```bash
-# Windows
-fix_db.bat
-
-# Linux/Mac
-./fix_db.sh
-
-# Или вручную
-python fix_database.py
+```bat
+install_menu.bat   # set up Telegram command menu (once)
+start_bot.bat      # start the bot
 ```
 
-## 📝 Версия 2.0
+### Linux / Mac
 
-Улучшения:
-- Полная переработка системы ошибок
-- Автоперезапуск и мониторинг
-- Улучшенная база данных
-- Подробная статистика
-- Резервное копирование
-- Graceful shutdown
-#
-# 🌍 Web App для интерактивной карты погоды
-
-Бот теперь поддерживает Web App для интерактивной карты погоды с запросом местоположения.
-
-### Настройка Web App
-
-1. **Размещение HTML файла**:
-   - Загрузите `weather_map.html` на ваш веб-сервер
-   - Убедитесь, что файл доступен по HTTPS (требование Telegram)
-
-2. **Обновление URL в коде**:
-   ```python
-   # В keyboards.py замените URL на ваш
-   web_app_url = "https://your-domain.com/weather_map.html"
-   ```
-
-3. **Локальное тестирование**:
-   ```bash
-   # Запуск локального сервера для тестирования
-   python serve_webapp.py
-   
-   # Откройте в браузере
-   http://localhost:8000/weather_map.html
-   ```
-
-### Возможности Web App
-
-- 📍 Запрос геолокации пользователя
-- 🗺️ Интерактивные карты погоды (осадки, облачность, температура, ветер)
-- 🎨 Адаптация под тему Telegram
-- 📱 Мобильная оптимизация
-
-### Новые команды в меню
-
-Все команды теперь доступны в меню Telegram:
-- `/start` - 🚀 Запустить бота
-- `/weather` - 🌤️ Текущая погода
-- `/forecast` - 📅 Прогноз на 5 дней
-- `/map` - 🗺️ Карта погоды
-- `/setcity` - 🏙️ Установить город
-- `/stats` - 📊 Статистика
-- `/about` - ℹ️ О боте
-- `/help` - ❓ Помощь
-
-### Обновление команд
-
-Для обновления меню команд запустите:
 ```bash
-python setup_commands.py
+chmod +x *.sh && ./install_menu.sh && ./start_bot.sh
 ```
+
+## Deploy to Render
+
+1. Fork this repo.
+2. Create a **Web Service** on [render.com](https://render.com) and connect the fork.
+3. Set environment variables:
+
+| Variable | Value |
+|---|---|
+| `BOT_TOKEN` | Your bot token from [@BotFather](https://t.me/BotFather) |
+| `WEATHER_API_KEY` | Your [OpenWeatherMap](https://openweathermap.org/api) key |
+| `USE_WEBHOOK` | `true` |
+| `WEBHOOK_URL` | `https://your-app-name.onrender.com` |
+
+4. Build: `pip install -r requirements.txt` / Start: `python main.py`
+
+## Bot Commands
+
+| Command | Description |
+|---|---|
+| `/start` | Launch the bot |
+| `/weather` | Current weather for your city |
+| `/forecast` | 5-day forecast |
+| `/map` | Interactive weather map (Web App) |
+| `/setcity` | Set your default city |
+| `/stats` | Usage statistics |
+| `/help` | Help and examples |
+
+## Project Structure
+
+```
+weather_bot/
+├── main.py           # Entry point + webhook server
+├── bot.py            # Bot logic and handlers
+├── database.py       # SQLite operations
+├── config.py         # Configuration
+├── keyboards.py      # Inline keyboards
+├── run_bot.py        # Auto-restart watchdog
+├── weather_map.html  # Interactive Web App map
+├── render.yaml       # Render deploy config
+├── Dockerfile
+└── requirements.txt
+```
+
+## Health Endpoints
+
+`/health`, `/healthz`, `/ready`, `/alive` — for uptime monitoring on Render.
+
+## Troubleshooting
+
+| Problem | Fix |
+|---|---|
+| Bot doesn't start | Check `BOT_TOKEN` in `.env` |
+| No weather data | Check `WEATHER_API_KEY` |
+| DB errors on setcity | Run `fix_db.bat` / `./fix_db.sh` |
+| Command menu missing | Run `python setup_commands.py` |
+
+## License
+
+MIT
